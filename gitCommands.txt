@@ -14,8 +14,13 @@ git commit -m "Add Visual Studio project files"
 
 4. Connect to Your GitHub Repository
 If you haven't connected your local repository to GitHub yet, add your GitHub repository URL:
-git remote add origin https://github.com/your-username/your-repo-name.git
+git remote add origin https://github.com/NielsVanthournout1/ProjectAIFundementals.git
 
 5. Push the Changes to GitHub
 To push your changes to the main branch on GitHub, use:
-git push -u origin main
+git push -u origin master
+
+---
+new file: git add .
+Commit with a message describing the changes: git commit -m "Discription."
+push changes: git push -u origin master

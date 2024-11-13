@@ -4,9 +4,15 @@ import tkinter as tk
 from tkinter import ttk
 from datetime import datetime
 import pandas as pd
+import serial
+import time
 
 # API URL
 api_url = 'https://www.chatforumaiprogramming.be/api.php'  # Replace with your actual domain
+
+
+# Set up serial communication with the micro:bit (adjust COM port as needed)
+ser = serial.Serial('COM4', 115200)  # Replace 'COM3' with your micro:bit's COM port
 
 # Function to fetch messages from the API
 def fetch_messages():
@@ -21,12 +27,12 @@ def fetch_messages():
         print(f"Failed to connect to API. Status Code: {response.status_code}")
         return []
 
-# Function to display messages in the GUI
+# Function to display messages in the GUI and notify the micro:bit of new messages
 def display_messages():
     messages = fetch_messages()
     for widget in messages_frame.winfo_children():
         widget.destroy()  # Clear the current messages in the frame
-    
+
     if messages:
         for message in messages:
             user_label = tk.Label(messages_frame, text=f"User: {message['user']}")
@@ -37,6 +43,9 @@ def display_messages():
             date_label.pack(anchor='w', pady=2)
             separator = ttk.Separator(messages_frame, orient='horizontal')
             separator.pack(fill='x', pady=5)
+        
+        # Send a notification signal to the micro:bit
+        ser.write(b'new_message\n')
     else:
         no_message_label = tk.Label(messages_frame, text="No messages found.")
         no_message_label.pack()
