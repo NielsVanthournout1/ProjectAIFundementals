@@ -1,0 +1,21 @@
+1. Initialize Git (if not already done)
+If your project is not already a Git repository, navigate to your project folder in the terminal and initialize Git:
+git init
+
+2. Add the VS Folder to Git Tracking
+If you want to add all files within your VS project folder, navigate to the project folder and run:
+git add .
+Or, if you only want to add specific files within the VS folder, specify the files directly:
+git add path/to/file1 path/to/file2
+
+3. Commit the Changes
+Commit the added files with a message describing the changes:
+git commit -m "Add Visual Studio project files"
+
+4. Connect to Your GitHub Repository
+If you haven't connected your local repository to GitHub yet, add your GitHub repository URL:
+git remote add origin https://github.com/your-username/your-repo-name.git
+
+5. Push the Changes to GitHub
+To push your changes to the main branch on GitHub, use:
+git push -u origin main
