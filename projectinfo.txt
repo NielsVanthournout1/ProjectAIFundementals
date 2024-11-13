@@ -1,0 +1,7 @@
+# Installatie van benodigdheden
+    # Installeer eerst de benodigde packages als ze nog niet geïnstalleerd zijn:
+    # pip install pandas requests websockets
+
+# Combell Web hosting (Linux), sofwarelicense: STUDENT2435233
+
+# domein: chatforumaiprogramming.be

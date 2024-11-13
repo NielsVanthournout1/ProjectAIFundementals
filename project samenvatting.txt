@@ -1,0 +1,16 @@
+chatforum: Een platform waar gebruikers berichten kunnen versturen en ontvangen via een Web API. Het biedt verschillende functionaliteiten, zoals real-time updates, archivering van oude berichten, en de mogelijkheid om berichten te doorzoeken.
+
+modules: 
+- Datatime / Tijdstippen van berichten opslaan
+- json / data in JSON-formaat te versturen en ontvangen
+package: 
+- pandas / analyseren van de berichten (bijvoorbeeld om het aantal berichten per gebruiker of per tijdstip te tellen)
+
+Web API: Hierop zullen alle berichten worden gezet met bijhoorende info zoals time, sender, …
+
+
+Project: 
+- interface die de berichten gaat tonen en een optie een een bericht te typen die verstuurd word.
+- Op de API worden berichten ouder dan x lokaal opgeslaan en verwijderd van de API, de gebruiken stelt zelf in of hij deze wilt opslaan.
+- notificatiesysteem / Real-time updates met websockets
+- zoekfuntie
