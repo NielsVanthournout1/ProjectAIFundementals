@@ -83,10 +83,6 @@ root = tk.Tk()
 root.title("Messages from API")
 root.geometry("400x500")
 
-# Frame to hold the messages
-messages_frame = tk.Frame(root)
-messages_frame.pack(fill='both', expand=True, padx=10, pady=10)
-
 # Frame for the input fields and send button
 input_frame = tk.Frame(root)
 input_frame.pack(fill='x', padx=10, pady=10)
@@ -114,6 +110,10 @@ refresh_button.pack(pady=10)
 # Button to analyze messages
 analyze_button = tk.Button(root, text="Analyze Messages", command=analyze_messages)
 analyze_button.pack(pady=10)
+
+# Frame to hold the messages
+messages_frame = tk.Frame(root)
+messages_frame.pack(fill='both', expand=True, padx=10, pady=10)
 
 # Fetch and display the initial messages
 display_messages()
