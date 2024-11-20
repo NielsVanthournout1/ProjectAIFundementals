@@ -4,41 +4,23 @@ from tkinter import ttk, messagebox
 from datetime import datetime
 import pandas as pd
 import serial
+import json
+import os
 
 # API URL
 api_url = 'https://www.chatforumaiprogramming.be/api.php'  # Replace with your actual domain
 
-# Initialize micro:bit connection and toggle state
+# Set the serial port to COM4 (start with None to disable by default)
 ser = None
-microbit_enabled = False
 
-def connect_microbit():
-    """Attempt to connect to the micro:bit on COM4."""
-    global ser
-    try:
-        ser = serial.Serial('COM4', 115200, timeout=1)  # Update 'COM4' if needed for your system
-        print("Connected to micro:bit on COM4")
-        return True
-    except serial.SerialException:
-        ser = None
-        print("Failed to connect to micro:bit on COM4. Make sure it's connected.")
-        return False
+# File to store the last message
+last_message_file = 'last_message.json'
 
-def toggle_microbit():
-    """Enable or disable the micro:bit functionality."""
-    global microbit_enabled, ser
-    microbit_enabled = not microbit_enabled
-    if microbit_enabled:
-        if connect_microbit():
-            messagebox.showinfo("Micro:bit Enabled", "Micro:bit functionality enabled.")
-        else:
-            messagebox.showerror("Micro:bit Error", "Failed to connect to micro:bit. Functionality disabled.")
-            microbit_enabled = False
-    else:
-        if ser:
-            ser.close()
-            ser = None
-        messagebox.showinfo("Micro:bit Disabled", "Micro:bit functionality disabled.")
+# To track if notifications are enabled
+notifications_enabled = False
+
+# To track if auto-refresh should happen
+auto_refresh_enabled = True
 
 # Function to fetch messages from the API
 def fetch_messages():
@@ -53,22 +35,54 @@ def fetch_messages():
 
 # Function to display messages in the GUI and notify the micro:bit
 def display_messages():
-    messages = fetch_messages()
-    for widget in messages_frame.winfo_children():
-        widget.destroy()
+    if auto_refresh_enabled:
+        messages = fetch_messages()
+        for widget in messages_canvas_frame.winfo_children():
+            widget.destroy()
 
-    if messages:
-        for message in messages:
-            tk.Label(messages_frame, text=f"User: {message['user']}").pack(anchor='w', pady=2)
-            tk.Label(messages_frame, text=f"Message: {message['message']}").pack(anchor='w', pady=2)
-            tk.Label(messages_frame, text=f"Date: {message['dateTime']}").pack(anchor='w', pady=2)
-            ttk.Separator(messages_frame, orient='horizontal').pack(fill='x', pady=5)
+        if messages:
+            most_recent_message = messages[-1]  # Get the most recent message (last in list)
+            stored_last_message = load_last_message()
 
-        # Send notification to micro:bit if enabled
-        if microbit_enabled and ser:
-            ser.write(b'new_message\n')
-    else:
-        tk.Label(messages_frame, text="No messages found.").pack()
+            # Check if the most recent message is different from the stored one
+            if stored_last_message is None or stored_last_message['dateTime'] != most_recent_message['dateTime']:
+                save_last_message(most_recent_message)  # Save the new most recent message
+
+                # Only notify if the notifications are enabled
+                if notifications_enabled and ser:
+                    ser.write(b'new_message\n')  # Notify the micro:bit with a new message
+
+            # Display all messages in reverse order (bottom to top)
+            for message in reversed(messages):  # Reversed so the most recent is at the bottom
+                tk.Label(messages_canvas_frame, text=f"User: {message['user']}").pack(anchor='w', pady=2)
+                tk.Label(messages_canvas_frame, text=f"Message: {message['message']}").pack(anchor='w', pady=2)
+                tk.Label(messages_canvas_frame, text=f"Date: {message['dateTime']}").pack(anchor='w', pady=2)
+                ttk.Separator(messages_canvas_frame, orient='horizontal').pack(fill='x', pady=5)
+
+        else:
+            tk.Label(messages_canvas_frame, text="No messages found.").pack()
+
+    # Schedule the next refresh every second (if auto-refresh is enabled)
+    if auto_refresh_enabled:
+        root.after(1000, display_messages)  # Schedule the next refresh
+
+# Function to save the most recent message to a file
+def save_last_message(message):
+    try:
+        with open(last_message_file, 'w') as f:
+            json.dump(message, f)
+    except Exception as e:
+        print(f"Error saving last message: {e}")
+
+# Function to load the last message from the file
+def load_last_message():
+    if os.path.exists(last_message_file):
+        try:
+            with open(last_message_file, 'r') as f:
+                return json.load(f)
+        except Exception as e:
+            print(f"Error loading last message: {e}")
+    return None
 
 # Function to send a new message to the API
 def send_message():
@@ -78,7 +92,8 @@ def send_message():
         try:
             response = requests.post(api_url, json=data)
             if response.status_code == 200:
-                display_messages()
+                # Do not refresh automatically after sending a message
+                pass
             else:
                 print(f"Failed to send message. Status Code: {response.status_code}")
         except Exception as e:
@@ -97,40 +112,107 @@ def analyze_messages():
     else:
         print("No messages to analyze.")
 
+# Function to toggle notifications (and the micro:bit connection)
+def toggle_notifications():
+    global notifications_enabled, ser
+
+    if notifications_enabled:
+        # Turn off notifications and disable micro:bit
+        notifications_enabled = False
+        if ser:
+            ser.close()
+            ser = None
+        notifications_button.config(text="Notifications Off")
+        print("Notifications disabled.")
+    else:
+        # Turn on notifications and enable micro:bit
+        notifications_enabled = True
+        try:
+            ser = serial.Serial('COM4', 115200, timeout=1)
+            notifications_button.config(text="Notifications On")
+            print("Notifications enabled, Micro:bit system connected.")
+        except serial.SerialException:
+            messagebox.showerror("Error", "Failed to connect to Micro:bit.")
+            print("Failed to connect to Micro:bit.")
+
+# Function to toggle auto-refresh behavior
+def toggle_auto_refresh():
+    global auto_refresh_enabled
+    auto_refresh_enabled = not auto_refresh_enabled
+    if auto_refresh_enabled:
+        auto_refresh_button.config(text="Disable Auto-Refresh")
+        print("Auto-refresh enabled.")
+        display_messages()  # Start refreshing again if enabled
+    else:
+        auto_refresh_button.config(text="Enable Auto-Refresh")
+        print("Auto-refresh disabled.")
+
 # Create the main window
 root = tk.Tk()
 root.title("Messages from API")
-root.geometry("400x550")
+root.geometry("500x600")
 
-# Input frame
-input_frame = tk.Frame(root)
-input_frame.pack(fill='x', padx=10, pady=10)
+# Set minimum size to ensure buttons and fields are visible
+root.minsize(400, 150)  # Minimum width: 400, Minimum height: 150
 
-tk.Label(input_frame, text="Your Name:").pack(side='left', padx=5)
-user_entry = tk.Entry(input_frame)
-user_entry.pack(side='left', fill='x', expand=True, padx=5)
+# Frame for buttons on top
+buttons_frame = tk.Frame(root)
+buttons_frame.pack(side='top', fill='x', pady=10)
 
-tk.Label(input_frame, text="Your Message:").pack(side='left', padx=5)
-message_entry = tk.Entry(input_frame)
-message_entry.pack(side='left', fill='x', expand=True, padx=5)
+# Buttons for analyzing, notifications, and auto-refresh
+auto_refresh_button = tk.Button(buttons_frame, text="Disable Auto-Refresh", command=toggle_auto_refresh)
+auto_refresh_button.pack(side='left', padx=5)
 
-send_button = tk.Button(input_frame, text="Send Message", command=send_message)
-send_button.pack(side='left', padx=5)
+notifications_button = tk.Button(buttons_frame, text="Notifications Off", command=toggle_notifications)
+notifications_button.pack(side='left', padx=5)
 
-# Buttons for refreshing and analyzing messages
-refresh_button = tk.Button(root, text="Refresh Messages", command=display_messages)
-refresh_button.pack(pady=10)
+analyze_button = tk.Button(buttons_frame, text="Analyze Messages", command=analyze_messages)
+analyze_button.pack(side='right', padx=5)
 
-analyze_button = tk.Button(root, text="Analyze Messages", command=analyze_messages)
-analyze_button.pack(pady=10)
-
-# Micro:bit toggle button
-toggle_button = tk.Button(root, text="Toggle Micro:bit", command=toggle_microbit)
-toggle_button.pack(pady=10)
-
-# Frame for displaying messages
+# Frame for messages with scrollbar
 messages_frame = tk.Frame(root)
 messages_frame.pack(fill='both', expand=True, padx=10, pady=10)
+
+messages_canvas = tk.Canvas(messages_frame)
+messages_scrollbar = ttk.Scrollbar(messages_frame, orient='vertical', command=messages_canvas.yview)
+messages_canvas.configure(yscrollcommand=messages_scrollbar.set)
+
+messages_canvas.pack(side='left', fill='both', expand=True)
+messages_scrollbar.pack(side='right', fill='y')
+
+# Frame inside the canvas for messages
+messages_canvas_frame = tk.Frame(messages_canvas)
+messages_canvas.create_window((0, 0), window=messages_canvas_frame, anchor='nw')
+
+# Update the canvas scroll region when content changes
+def update_scroll_region(event):
+    messages_canvas.configure(scrollregion=messages_canvas.bbox("all"))
+
+messages_canvas_frame.bind("<Configure>", update_scroll_region)
+
+# Input frame (User, Message and Send button) at the bottom
+input_frame = tk.Frame(root)
+input_frame.pack(side='bottom', fill='x', padx=10, pady=10)
+
+# User and Message input fields
+tk.Label(input_frame, text="Your Name:").pack(side='left', padx=5)
+
+# Set a fixed width for the username input field
+user_entry = tk.Entry(input_frame, width=15)  # Adjusted width for the name entry
+user_entry.pack(side='left', padx=5)
+
+tk.Label(input_frame, text="Your Message:").pack(side='left', padx=5)
+
+# Message input field should be as small as possible but flexible
+message_entry = tk.Entry(input_frame, width=30)  # Minimum width for the message input
+message_entry.pack(side='left', fill='x', expand=True, padx=5)
+
+# Send Message button should always be visible
+send_button = tk.Button(input_frame, text="Send Message", command=send_message)
+send_button.pack(side='right', padx=5)
+
+# Start the initial call to display messages
+display_messages()
 
 # Start the main event loop
 root.mainloop()
