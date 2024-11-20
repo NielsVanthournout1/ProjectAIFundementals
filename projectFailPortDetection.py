@@ -4,41 +4,28 @@ from tkinter import ttk, messagebox
 from datetime import datetime
 import pandas as pd
 import serial
+import serial.tools.list_ports
+import time
 
 # API URL
 api_url = 'https://www.chatforumaiprogramming.be/api.php'  # Replace with your actual domain
 
-# Initialize micro:bit connection and toggle state
-ser = None
-microbit_enabled = False
+# Function to list all available COM ports
+def list_ports():
+    return [port.device for port in serial.tools.list_ports.comports()]
 
-def connect_microbit():
-    """Attempt to connect to the micro:bit on COM4."""
-    global ser
-    try:
-        ser = serial.Serial('COM4', 115200, timeout=1)  # Update 'COM4' if needed for your system
-        print("Connected to micro:bit on COM4")
-        return True
-    except serial.SerialException:
-        ser = None
-        print("Failed to connect to micro:bit on COM4. Make sure it's connected.")
-        return False
-
-def toggle_microbit():
-    """Enable or disable the micro:bit functionality."""
-    global microbit_enabled, ser
-    microbit_enabled = not microbit_enabled
-    if microbit_enabled:
-        if connect_microbit():
-            messagebox.showinfo("Micro:bit Enabled", "Micro:bit functionality enabled.")
-        else:
-            messagebox.showerror("Micro:bit Error", "Failed to connect to micro:bit. Functionality disabled.")
-            microbit_enabled = False
-    else:
-        if ser:
+# Function to find the micro:bit by checking all available ports
+def find_microbit():
+    for port in list_ports():
+        try:
+            ser = serial.Serial(port, 115200, timeout=1)
+            time.sleep(2)  # Allow micro:bit to send the message
+            if ser.in_waiting > 0 and ser.read(ser.in_waiting).decode('utf-8').strip() == "ImTheMicroBit":
+                return ser
             ser.close()
-            ser = None
-        messagebox.showinfo("Micro:bit Disabled", "Micro:bit functionality disabled.")
+        except serial.SerialException:
+            pass
+    return None
 
 # Function to fetch messages from the API
 def fetch_messages():
@@ -64,8 +51,7 @@ def display_messages():
             tk.Label(messages_frame, text=f"Date: {message['dateTime']}").pack(anchor='w', pady=2)
             ttk.Separator(messages_frame, orient='horizontal').pack(fill='x', pady=5)
 
-        # Send notification to micro:bit if enabled
-        if microbit_enabled and ser:
+        if ser:
             ser.write(b'new_message\n')
     else:
         tk.Label(messages_frame, text="No messages found.").pack()
@@ -97,10 +83,23 @@ def analyze_messages():
     else:
         print("No messages to analyze.")
 
+# Function to handle "Look for micro:bit" button click
+def on_look_for_microbit():
+    global ser
+    ser = find_microbit()
+    if ser:
+        messagebox.showinfo("Success", "Micro:bit found and connected.")
+        look_for_button.config(state=tk.DISABLED)
+        send_button.config(state=tk.NORMAL)
+        refresh_button.config(state=tk.NORMAL)
+        analyze_button.config(state=tk.NORMAL)
+    else:
+        messagebox.showerror("Error", "Micro:bit not found. Please connect it and try again.")
+
 # Create the main window
 root = tk.Tk()
 root.title("Messages from API")
-root.geometry("400x550")
+root.geometry("400x500")
 
 # Input frame
 input_frame = tk.Frame(root)
@@ -114,23 +113,23 @@ tk.Label(input_frame, text="Your Message:").pack(side='left', padx=5)
 message_entry = tk.Entry(input_frame)
 message_entry.pack(side='left', fill='x', expand=True, padx=5)
 
-send_button = tk.Button(input_frame, text="Send Message", command=send_message)
+send_button = tk.Button(input_frame, text="Send Message", command=send_message, state=tk.DISABLED)
 send_button.pack(side='left', padx=5)
 
 # Buttons for refreshing and analyzing messages
-refresh_button = tk.Button(root, text="Refresh Messages", command=display_messages)
+refresh_button = tk.Button(root, text="Refresh Messages", command=display_messages, state=tk.DISABLED)
 refresh_button.pack(pady=10)
 
-analyze_button = tk.Button(root, text="Analyze Messages", command=analyze_messages)
+analyze_button = tk.Button(root, text="Analyze Messages", command=analyze_messages, state=tk.DISABLED)
 analyze_button.pack(pady=10)
-
-# Micro:bit toggle button
-toggle_button = tk.Button(root, text="Toggle Micro:bit", command=toggle_microbit)
-toggle_button.pack(pady=10)
 
 # Frame for displaying messages
 messages_frame = tk.Frame(root)
 messages_frame.pack(fill='both', expand=True, padx=10, pady=10)
+
+# Button to look for micro:bit
+look_for_button = tk.Button(root, text="Look for micro:bit", command=on_look_for_microbit)
+look_for_button.pack(pady=10)
 
 # Start the main event loop
 root.mainloop()

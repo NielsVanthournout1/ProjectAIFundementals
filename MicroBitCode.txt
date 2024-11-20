@@ -3,24 +3,24 @@ OR
 Flash code on own microbit. (Make sure to install als the needed thing when flashing)
 ----------------------------------------------------------------------------------------
 from microbit import *
-import music # Import the music module to play sounds on the micro:bit
+import music  # Import the music module to play sounds on the micro:bit
 
 # Initialize serial communication with a baud rate of 115200
 uart.init(baudrate=115200)
 
+NEW_MESSAGE = "new_message"
+
 while True:
-    display.clear()
-    
     # Check if there is any data available from the serial input
     if uart.any():
         # Read the incoming serial data, decode it to a string, and strip any whitespace
         message = uart.read().decode('utf-8').strip()
-        
+
         # Check if the received message is the notification signal "new_message"
-        if message == "new_message":
+        if message == NEW_MESSAGE:
             display.show("N")
             music.play(music.BA_DING)
             sleep(1000)
             display.clear()
-    
-    sleep(100)
+
+    sleep(100)  # Small delay to avoid high CPU usage
