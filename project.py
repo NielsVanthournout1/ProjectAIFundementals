@@ -6,6 +6,7 @@ import pandas as pd
 import serial
 import json
 import os
+from search_messages import open_search_window  # Import the function
 
 # API URL
 api_url = 'https://www.chatforumaiprogramming.be/api.php'  # Replace with your actual domain
@@ -41,11 +42,11 @@ def display_messages():
             widget.destroy()
 
         if messages:
-            most_recent_message = messages[-1]  # Get the most recent message (last in list)
+            most_recent_message = messages[0]  # Get the most recent message (last in list)
             stored_last_message = load_last_message()
-
+            
             # Check if the most recent message is different from the stored one
-            if stored_last_message is None or stored_last_message['dateTime'] != most_recent_message['dateTime']:
+            if stored_last_message is None or stored_last_message.get('dateTime') != most_recent_message['dateTime']:
                 save_last_message(most_recent_message)  # Save the new most recent message
 
                 # Only notify if the notifications are enabled
@@ -69,8 +70,14 @@ def display_messages():
 # Function to save the most recent message to a file
 def save_last_message(message):
     try:
+        # Save user, message, and dateTime
+        last_message = {
+            'user': message['user'], 
+            'message': message['message'],
+            'dateTime': message['dateTime']
+        }
         with open(last_message_file, 'w') as f:
-            json.dump(message, f)
+            json.dump(last_message, f)
     except Exception as e:
         print(f"Error saving last message: {e}")
 
@@ -101,8 +108,6 @@ def send_message():
     else:
         messagebox.showerror("Error", "Please enter both a name and a message.")
 
-# Function to analyze messages using pandas
-def analyze_messages():
     messages = fetch_messages()
     if messages:
         df = pd.DataFrame(messages)
@@ -125,13 +130,15 @@ def toggle_notifications():
         notifications_button.config(text="Notifications Off")
         print("Notifications disabled.")
     else:
-        # Turn on notifications and enable micro:bit
-        notifications_enabled = True
+        # Try to turn on notifications and enable micro:bit
         try:
             ser = serial.Serial('COM4', 115200, timeout=1)
+            notifications_enabled = True  # Enable notifications only if connection succeeds
             notifications_button.config(text="Notifications On")
             print("Notifications enabled, Micro:bit system connected.")
         except serial.SerialException:
+            # If connection fails, do not enable notifications
+            ser = None
             messagebox.showerror("Error", "Failed to connect to Micro:bit.")
             print("Failed to connect to Micro:bit.")
 
@@ -153,7 +160,7 @@ root.title("Messages from API")
 root.geometry("500x600")
 
 # Set minimum size to ensure buttons and fields are visible
-root.minsize(400, 150)  # Minimum width: 400, Minimum height: 150
+root.minsize(600, 150)  # Minimum width: 400, Minimum height: 150
 
 # Frame for buttons on top
 buttons_frame = tk.Frame(root)
@@ -166,8 +173,8 @@ auto_refresh_button.pack(side='left', padx=5)
 notifications_button = tk.Button(buttons_frame, text="Notifications Off", command=toggle_notifications)
 notifications_button.pack(side='left', padx=5)
 
-analyze_button = tk.Button(buttons_frame, text="Analyze Messages", command=analyze_messages)
-analyze_button.pack(side='right', padx=5)
+search_button = tk.Button(buttons_frame, text="Search Messages", command=open_search_window)
+search_button.pack(side='right', padx=5)
 
 # Frame for messages with scrollbar
 messages_frame = tk.Frame(root)
