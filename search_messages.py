@@ -1,3 +1,4 @@
+from message_fetcher import MessageFetcher  # Import MessageFetcher
 import tkinter as tk
 from tkinter import ttk
 from tkinter import messagebox
@@ -5,51 +6,51 @@ from tkcalendar import DateEntry  # Import DateEntry for the date picker
 import pandas as pd
 import requests
 
-# API URL
-api_url = 'https://www.chatforumaiprogramming.be/api.php'
+# Derived class to handle searching functionality
+class SearchableMessageFetcher(MessageFetcher):
+    def __init__(self, api_url):
+        super().__init__(api_url)
 
-# Function to fetch messages from the API and convert them into a DataFrame
-def fetch_messages():
-    try:
-        response = requests.get(api_url)
-        if response.status_code == 200:
-            # Convert the messages to a DataFrame
-            messages = response.json().get('messages', [])
-            df = pd.DataFrame(messages)
-            df['dateTime'] = pd.to_datetime(df['dateTime'])  # Convert dateTime to datetime
+    def search_messages(self, user, selected_date, word):
+        # Fetch all messages into a pandas DataFrame
+        df = self.fetch_messages()
+
+        if not df.empty:
+            # Filter by user (exact match)
+            if user:
+                df = df[df['user'].str.lower() == user.lower()]  # Exact match (case-insensitive)
+
+            # Filter by date
+            if selected_date:
+                # Filter by the selected date
+                df = df[df['dateTime'].dt.date == selected_date]
+
+            # Filter by word in the message
+            if word:
+                # Filter by word in the message content
+                df = df[df['message'].str.contains(word, case=False, na=False)]  # Case-insensitive search
+
             return df
-    except Exception as e:
-        print(f"Error fetching messages: {e}")
-    return pd.DataFrame()  # Return an empty DataFrame if there's an error
+        else:
+            return pd.DataFrame()  # Return empty DataFrame if no messages are found
 
-# Function to search messages by user, date, or word
-def search_messages():
-    user = user_entry.get()
-    selected_date = date_picker.get_date()
-    word = word_entry.get()
+# Function to open search window and search messages
+def open_search_window():
+    def search_messages():
+        user = user_entry.get()
+        selected_date = date_picker.get_date()
+        word = word_entry.get()
 
-    # Fetch all messages into a pandas DataFrame
-    df = fetch_messages()
+        # Create an instance of the derived class to handle search
+        searchable_message_fetcher = SearchableMessageFetcher('https://www.chatforumaiprogramming.be/api.php')
 
-    if not df.empty:
-        # Filter by user (exact match)
-        if user:
-            df = df[df['user'].str.lower() == user.lower()]  # Exact match (case-insensitive)
-        
-        # Filter by date
-        if selected_date:
-            # Filter by the selected date
-            df = df[df['dateTime'].dt.date == selected_date]
-        
-        # Filter by word in the message
-        if word:
-            # Filter by word in the message content
-            df = df[df['message'].str.contains(word, case=False, na=False)]  # Case-insensitive search
-        
-        # Display results
+        # Search messages using the search functionality from the derived class
+        df = searchable_message_fetcher.search_messages(user, selected_date, word)
+
+        # Display the search results
         for widget in results_frame.winfo_children():
             widget.destroy()  # Clear previous results
-        
+
         if not df.empty:
             for _, row in df.iterrows():
                 tk.Label(results_frame, text=f"User: {row['user']}").pack(anchor='w', pady=2)
@@ -58,62 +59,7 @@ def search_messages():
                 ttk.Separator(results_frame, orient='horizontal').pack(fill='x', pady=5)
         else:
             tk.Label(results_frame, text="No messages found.").pack()
-    else:
-        messagebox.showerror("Error", "Failed to fetch messages or no messages available.")
 
-# Toegevoegde variabele om de huidige pagina bij te houden
-current_page = 0
-messages_per_page = 3  # Aantal berichten per pagina
-
-# Functie om berichten te tonen op basis van de huidige pagina
-def display_paginated_messages():
-    global current_page
-    messages = fetch_messages()
-
-    for widget in messages_canvas_frame.winfo_children():
-        widget.destroy()
-
-    if messages:
-        start_index = current_page * messages_per_page
-        end_index = start_index + messages_per_page
-        paginated_messages = messages[start_index:end_index]
-
-        for message in reversed(paginated_messages):  # Reversed zodat nieuwste onderaan staat
-            tk.Label(messages_canvas_frame, text=f"User: {message['user']}").pack(anchor='w', pady=2)
-            tk.Label(messages_canvas_frame, text=f"Message: {message['message']}").pack(anchor='w', pady=2)
-            tk.Label(messages_canvas_frame, text=f"Date: {message['dateTime']}").pack(anchor='w', pady=2)
-            ttk.Separator(messages_canvas_frame, orient='horizontal').pack(fill='x', pady=5)
-
-        # Als er geen berichten meer zijn om weer te geven
-        if not paginated_messages:
-            tk.Label(messages_canvas_frame, text="No more messages to display.").pack()
-
-    else:
-        tk.Label(messages_canvas_frame, text="No messages found.").pack()
-
-    update_navigation_buttons(messages)
-
-# Functie om de navigatieknoppen te updaten
-def update_navigation_buttons(messages):
-    prev_button.config(state=tk.NORMAL if current_page > 0 else tk.DISABLED)
-    next_button.config(state=tk.NORMAL if (current_page + 1) * messages_per_page < len(messages) else tk.DISABLED)
-
-# Functie om naar de vorige pagina te gaan
-def show_previous_page():
-    global current_page
-    if current_page > 0:
-        current_page -= 1
-        display_paginated_messages()
-
-# Functie om naar de volgende pagina te gaan
-def show_next_page():
-    global current_page
-    messages = fetch_messages()
-    if (current_page + 1) * messages_per_page < len(messages):
-        current_page += 1
-        display_paginated_messages()
-# Create the search window
-def create_search_window():
     search_window = tk.Toplevel()
     search_window.title("Search Messages")
     search_window.geometry("500x400")
@@ -164,7 +110,3 @@ def create_search_window():
 
     # Pack the results_frame after adding the canvas
     results_frame.pack(fill='both', expand=True, padx=10, pady=10)
-
-# Function to trigger the search window from the main window
-def open_search_window():
-    create_search_window()
