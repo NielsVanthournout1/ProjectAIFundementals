@@ -6,7 +6,7 @@ import pandas as pd
 import serial
 import json
 import os
-from search_messages import open_search_window  # Import the function
+from search_messages import open_search_window
 
 # API URL
 api_url = 'https://www.chatforumaiprogramming.be/api.php'  # Replace with your actual domain
@@ -23,52 +23,57 @@ notifications_enabled = False
 # To track if auto-refresh should happen
 auto_refresh_enabled = True
 
-# Function to fetch messages from the API
-def fetch_messages():
-    try:
-        response = requests.get(api_url)
-        if response.status_code == 200:
-            response_data = response.json()
-            return response_data.get('messages', [])
-    except Exception as e:
-        print(f"Error fetching messages: {e}")
-    return []
+class MessageFetcher:
+    def __init__(self, api_url, last_message_file):
+        self.api_url = api_url
+        self.last_message_file = last_message_file
 
-# Function to display messages in the GUI and notify the micro:bit
-def display_messages():
-    if auto_refresh_enabled:
-        messages = fetch_messages()
-        for widget in messages_canvas_frame.winfo_children():
-            widget.destroy()
+    def fetch_messages(self):
+        try:
+            response = requests.get(self.api_url)
+            if response.status_code == 200:
+                response_data = response.json()
+                return response_data.get('messages', [])
+        except Exception as e:
+            print(f"Error fetching messages: {e}")
+        return []
 
-        if messages:
-            most_recent_message = messages[0]  # Get the most recent message (last in list)
-            stored_last_message = load_last_message()
-            
-            # Check if the most recent message is different from the stored one
-            if stored_last_message is None or stored_last_message.get('dateTime') != most_recent_message['dateTime']:
-                save_last_message(most_recent_message)  # Save the new most recent message
+    def display_messages(self, messages_canvas_frame, notifications_enabled, ser):
+        if auto_refresh_enabled:  # Only refresh if auto-refresh is enabled
+            messages = self.fetch_messages()
 
-                # Only notify if the notifications are enabled
-                if notifications_enabled and ser:
-                    ser.write(b'new_message\n')  # Notify the micro:bit with a new message
+            # Clear existing widgets
+            for widget in messages_canvas_frame.winfo_children():
+                widget.destroy()
 
-            # Display all messages in reverse order (bottom to top)
-            for message in reversed(messages):  # Reversed so the most recent is at the bottom
-                tk.Label(messages_canvas_frame, text=f"User: {message['user']}").pack(anchor='w', pady=2)
-                tk.Label(messages_canvas_frame, text=f"Message: {message['message']}").pack(anchor='w', pady=2)
-                tk.Label(messages_canvas_frame, text=f"Date: {message['dateTime']}").pack(anchor='w', pady=2)
-                ttk.Separator(messages_canvas_frame, orient='horizontal').pack(fill='x', pady=5)
+            # Display messages if there are any
+            if messages:
+                most_recent_message = messages[0]
+                stored_last_message = load_last_message(self.last_message_file)
 
-        else:
-            tk.Label(messages_canvas_frame, text="No messages found.").pack()
+                # Save and notify if new message
+                if stored_last_message is None or stored_last_message.get('dateTime') != most_recent_message['dateTime']:
+                    save_last_message(most_recent_message, self.last_message_file)
 
-    # Schedule the next refresh every second (if auto-refresh is enabled)
-    if auto_refresh_enabled:
-        root.after(1000, display_messages)  # Schedule the next refresh
+                    if notifications_enabled and ser:
+                        ser.write(b'new_message\n')  # Send notification to micro:bit
+
+                # Display the messages in reverse order (most recent at bottom)
+                for message in reversed(messages):
+                    tk.Label(messages_canvas_frame, text=f"User: {message['user']}").pack(anchor='w', pady=2)
+                    tk.Label(messages_canvas_frame, text=f"Message: {message['message']}").pack(anchor='w', pady=2)
+                    tk.Label(messages_canvas_frame, text=f"Date: {message['dateTime']}").pack(anchor='w', pady=2)
+                    ttk.Separator(messages_canvas_frame, orient='horizontal').pack(fill='x', pady=5)
+
+            else:
+                tk.Label(messages_canvas_frame, text="No messages found.").pack()
+
+            # Schedule the next refresh every second (1000 ms)
+            root.after(1000, self.display_messages, messages_canvas_frame, notifications_enabled, ser)  # Refresh every second
+
 
 # Function to save the most recent message to a file
-def save_last_message(message):
+def save_last_message(message, last_message_file):
     try:
         # Save user, message, and dateTime
         last_message = {
@@ -82,7 +87,7 @@ def save_last_message(message):
         print(f"Error saving last message: {e}")
 
 # Function to load the last message from the file
-def load_last_message():
+def load_last_message(last_message_file):
     if os.path.exists(last_message_file):
         try:
             with open(last_message_file, 'r') as f:
@@ -90,6 +95,17 @@ def load_last_message():
         except Exception as e:
             print(f"Error loading last message: {e}")
     return None
+
+# Function to fetch messages from the API
+def fetch_messages():
+    try:
+        response = requests.get(api_url)
+        if response.status_code == 200:
+            response_data = response.json()
+            return response_data.get('messages', [])
+    except Exception as e:
+        print(f"Error fetching messages: {e}")
+    return []
 
 # Function to send a new message to the API
 def send_message():
@@ -149,7 +165,7 @@ def toggle_auto_refresh():
     if auto_refresh_enabled:
         auto_refresh_button.config(text="Disable Auto-Refresh")
         print("Auto-refresh enabled.")
-        display_messages()  # Start refreshing again if enabled
+        message_fetcher.display_messages(messages_canvas_frame, notifications_enabled, ser)  # Start refreshing again if enabled
     else:
         auto_refresh_button.config(text="Enable Auto-Refresh")
         print("Auto-refresh disabled.")
@@ -173,8 +189,9 @@ auto_refresh_button.pack(side='left', padx=5)
 notifications_button = tk.Button(buttons_frame, text="Notifications Off", command=toggle_notifications)
 notifications_button.pack(side='left', padx=5)
 
+# Add the "Search Messages" button to the main window
 search_button = tk.Button(buttons_frame, text="Search Messages", command=open_search_window)
-search_button.pack(side='right', padx=5)
+search_button.pack(side='left', padx=10)
 
 # Frame for messages with scrollbar
 messages_frame = tk.Frame(root)
@@ -218,8 +235,11 @@ message_entry.pack(side='left', fill='x', expand=True, padx=5)
 send_button = tk.Button(input_frame, text="Send Message", command=send_message)
 send_button.pack(side='right', padx=5)
 
+# Initialize the MessageFetcher instance with both parameters
+message_fetcher = MessageFetcher(api_url, last_message_file)
+
 # Start the initial call to display messages
-display_messages()
+message_fetcher.display_messages(messages_canvas_frame, notifications_enabled, ser)
 
 # Start the main event loop
 root.mainloop()
