@@ -20,7 +20,7 @@ class SearchableMessageFetcher(MessageFetcher):
             if user:
                 df = df[df['user'].str.lower() == user.lower()]  # Exact match (case-insensitive)
 
-            # Filter by date
+            # Filter by date if selected_date is provided
             if selected_date:
                 # Filter by the selected date
                 df = df[df['dateTime'].dt.date == selected_date]
@@ -38,7 +38,7 @@ class SearchableMessageFetcher(MessageFetcher):
 def open_search_window():
     def search_messages():
         user = user_entry.get()
-        selected_date = date_picker.get_date()
+        selected_date = date_picker.get_date() if date_var.get() else None  # Only use date if checkbox is selected
         word = word_entry.get()
 
         # Create an instance of the derived class to handle search
@@ -71,11 +71,17 @@ def open_search_window():
     user_entry.pack(pady=5)
     
     # Date picker for date selection
-    tk.Label(search_window, text="Select Date:").pack(pady=5)
+    global date_var
+    date_var = tk.BooleanVar(value=True)  # Track if the date filter is enabled
+
+    tk.Label(search_window, text="Select Date (Leave blank to ignore):").pack(pady=5)
+    date_checkbox = tk.Checkbutton(search_window, text="Filter by Date", variable=date_var)
+    date_checkbox.pack(pady=5)
+
     global date_picker
     date_picker = DateEntry(search_window, width=12, background='darkblue', foreground='white', borderwidth=2)
     date_picker.pack(pady=5)
-    
+
     # Word input field
     tk.Label(search_window, text="Enter Word to Search:").pack(pady=5)
     global word_entry
