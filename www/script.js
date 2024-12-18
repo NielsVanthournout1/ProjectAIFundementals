@@ -1,35 +1,44 @@
-// Zorg ervoor dat de code pas uitvoert nadat de pagina is geladen
+// Ensure code runs only after the page loads
 document.addEventListener('DOMContentLoaded', () => {
-    // Voeg een click-eventlistener toe aan de knop
+    // Add a click event listener to the button
     document.getElementById('getDataBtn').addEventListener('click', () => {
-        // Fetch-aanroep naar de API om berichten op te halen
+        // Fetch messages from the API
         fetch('http://chatforumaiprogramming.be/api.php', {
             method: 'GET'
         })
-        .then(response => response.json()) // Parse de JSON respons
+        .then(response => {
+            if (!response.ok) {
+                throw new Error('Network response was not ok');
+            }
+            return response.json();
+        })
         .then(data => {
-            // Controleer of de respons succesvol is
+            const responseContainer = document.getElementById('responseContainer');
+            responseContainer.innerHTML = ''; // Clear previous content
+
+            // Check if the response was successful
             if (data.status === 'success') {
                 const messages = data.messages;
-                const responseContainer = document.getElementById('responseContainer');
-                responseContainer.innerHTML = ''; // Verwijder eerdere content
 
-                // Loop door de berichten en voeg elk bericht toe aan de container
+                // Loop through each message and add it as a row in the table
                 messages.forEach(msg => {
-                    const messageElement = document.createElement('div');
-                    messageElement.classList.add('message');
-                    messageElement.innerHTML = `
-                        <div class="user">${msg.user}</div>
-                        <div class="dateTime">${new Date(msg.dateTime * 1000).toLocaleString()}</div>
-                        <div class="text">${msg.message}</div>
+                    const row = document.createElement('tr');
+                    row.innerHTML = `
+                        <td>${msg.user}</td>
+                        <td>${new Date(msg.dateTime).toLocaleString()}</td>
+                        <td>${msg.message}</td>
                     `;
-                    responseContainer.appendChild(messageElement);
+                    responseContainer.appendChild(row);
                 });
             } else {
-                // Geef een foutmelding weer als er geen berichten zijn
-                document.getElementById('responseContainer').innerHTML = 'Geen berichten gevonden';
+                // Display a message if no messages are found
+                responseContainer.innerHTML = '<tr><td colspan="3">Geen berichten gevonden</td></tr>';
             }
         })
-        .catch(error => console.error('Error:', error)); // Toon eventuele fouten in de console
+        .catch(error => {
+            console.error('Error:', error);
+            document.getElementById('responseContainer').innerHTML = '<tr><td colspan="3">Er is een fout opgetreden bij het ophalen van berichten.</td></tr>';
+        });
     });
 });
+``

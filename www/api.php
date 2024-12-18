@@ -18,7 +18,22 @@ if ($conn->connect_error) {
 
 // Check if it's a GET request (for fetching messages)
 if ($_SERVER['REQUEST_METHOD'] == 'GET') {
-    // GET code
+    $sql = "SELECT user, message, FROM_UNIXTIME(dateTime) AS dateTime FROM messages ORDER BY dateTime DESC LIMIT 10"; // Fetch latest 10 messages
+    $result = $conn->query($sql);
+
+    if ($result->num_rows > 0) {
+        $messages = [];
+        while ($row = $result->fetch_assoc()) {
+            $messages[] = [
+                'user' => $row['user'],
+                'message' => $row['message'],
+                'dateTime' => $row['dateTime'] // DateTime is now in human-readable format
+            ];
+        }
+        echo json_encode(['status' => 'success', 'messages' => $messages]);
+    } else {
+        echo json_encode(['status' => 'error', 'message' => 'No messages found']);
+    }
 } else {
     // Handle POST requests (for inserting new messages)
     $inputData = json_decode(file_get_contents('php://input'), true);
